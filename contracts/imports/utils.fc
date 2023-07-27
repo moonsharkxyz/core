@@ -1,0 +1,101 @@
+int equal_slices (slice a, slice b) asm "SDEQ";
+int tuple_length (tuple t) asm "TLEN";
+forall X -> (tuple, X) ~tpop (tuple t) asm "TPOP";
+int get_workchain () {
+    (int wc, _) = parse_std_addr(my_address());
+    return wc;
+}
+cell pack_state_init(cell contract, cell data) inline {
+    return begin_cell()
+		.store_uint(0, 2)
+		.store_dict(contract)
+		.store_dict(data)
+		.store_uint(0, 1)
+		.end_cell();
+}
+
+cell calc_user_init(cell contracts_cell, slice main_addr, slice owner_addr) inline {
+    slice contracts = contracts_cell.begin_parse();
+    cell user_contract = contracts~load_ref();
+    cell position_contract = contracts~load_ref();
+    cell board_contract = contracts~load_ref();
+    cell strike_contract = contracts~load_ref();
+    return pack_state_init(user_contract, begin_cell()
+        .store_ref(contracts_cell)
+        .store_slice(main_addr)
+        .store_slice(owner_addr)
+        .store_uint(0, 64)
+        .store_uint(0, 64)
+        .end_cell());
+}
+cell calc_position_init(cell contracts_cell, slice main_address, slice user_address, slice owner_address, int item_index) {
+    slice contracts = contracts_cell.begin_parse();
+    cell user_contract = contracts~load_ref();
+    cell position_contract = contracts~load_ref();
+    cell board_contract = contracts~load_ref();
+    cell strike_contract = contracts~load_ref();
+    return pack_state_init(position_contract, 
+      begin_cell()
+        .store_ref(contracts_cell)
+        .store_slice(main_address)
+        .store_slice(user_address)
+        .store_slice(owner_address)
+        .store_uint(item_index, 64)
+        .store_uint(0, 1)
+        .store_ref(begin_cell()
+          .store_uint(0, 32)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 1)
+          .end_cell()
+        ).end_cell());
+}
+
+cell calc_board_init(cell contracts_cell, slice main_addr, int asset, int exp_time) inline {
+    slice contracts = contracts_cell.begin_parse();
+    cell user_contract = contracts~load_ref();
+    cell position_contract = contracts~load_ref();
+    cell board_contract = contracts~load_ref();
+    cell strike_contract = contracts~load_ref();
+    return pack_state_init(board_contract, begin_cell()
+        .store_ref(contracts_cell)
+        .store_slice(main_addr)
+        .store_uint(0, 1)
+        .store_uint(asset, 3)
+        .store_uint(exp_time, 64)
+        .store_uint(0, 64)
+        .store_dict(new_dict())
+        .end_cell());
+}
+cell calc_strike_init(cell contracts_cell, slice main_address, slice board_address, int strike) inline {
+    slice contracts = contracts_cell.begin_parse();
+    cell user_contract = contracts~load_ref();
+    cell position_contract = contracts~load_ref();
+    cell board_contract = contracts~load_ref();
+    cell strike_contract = contracts~load_ref();
+    return pack_state_init(strike_contract, begin_cell()
+        .store_ref(contracts_cell)
+        .store_slice(main_address)
+        .store_slice(board_address)
+        .store_uint(0, 1)
+        .store_uint(strike, 64)
+        .store_uint(0, 64)
+        .store_uint(0, 64)
+        .end_cell());
+}
+
+slice calc_addr(cell state_init) {
+  return begin_cell()
+		.store_uint(4, 3)
+		.store_int(get_workchain(), 8)
+		.store_uint(cell_hash(state_init), 256)
+		.end_cell()
+		.begin_parse();
+}
