@@ -17,17 +17,44 @@ The Ton blockchain actively uses sharding technology. Sharding is based on a sim
 ### Main
 Main.fc is the primary contract in our system and it is used to trade options and to create other contracts.
 
+**Get methods:** 
+
+```get_live_boards()```
+
+```get_user_address(slice user_wallet)```
+
 ### Board
 Board.fc is responsible for representing the active board. The board is one expiration for one asset. Creation and updating occurs by admin. The board creates a strike.fc contracts.
+
+**Get methods:** 
+
+```get info()```
+
+```get_strike_address (int strike)```
 
 ### Strike
 Each Strike.fc contract is responsible for a specific strike on a specific board. The contract stores the strike value itself and the skew parameter used to price options.
 
+**Get methods:** 
+
+```get info()```
+
 ### User
 The User.fc contract is used as a proxy for storing information about a particular user. Contract is used to fetch all user's positions.
 
+**Get methods:** 
+
+```get info()```
+
+```get_position_address (int index)```
+
+
 ### Position
 Position.fc is a contract for storing data and implementing logic for interacting with positions. 
+
+**Get methods:** 
+
+```get info()``` 
 
 ## Oracle
 
@@ -40,18 +67,22 @@ Let's analyze the user groups that interact with the protocol.
 ### Traders
 Traders can buy/sell options. Traders have access to the following functions:
 
-- **openPosition (0x124ccada)** Allows to open a position on the Main contract. The arguments are asset id, strike, expiration, number of options, option type and collateral when opening a short position.
-- **closePosition (0x49cf872f)** Allows to close a position in the position contract. If at the time of expiration the position turned out to be profitable, the trader is paid the profit.
+```openPosition (0x124ccada)``` Allows to open a position on the Main contract. The arguments are asset id, strike, expiration, number of options, option type and collateral when opening a short position.
+
+```closePosition (0x49cf872f)``` Allows to close a position in the position contract. If at the time of expiration the position turned out to be profitable, the trader is paid the profit.
 
 ### Keepers
 Traders who sell options must enter collateral for their position into the protocol. If the price of the asset has changed unfavorably for the trader, his position will be liquidated. Liquidation of a position can be initiated by any person. After that, the protocol will check the correctness of the data and pay a reward for the liquidation.
 
-- **liquidatePosition (0x9df26739)** Liquidation of a position that does not have enough collateral. 
+```liquidatePosition (0x9df26739)``` Liquidation of a position that does not have enough collateral. 
 
 ### Admin
 The admin is the protocol team that deployed all system contracts. The admin has two main tasks: creating boards and updating them.
 
-- **initBoard (0xeef6342a)** Creation of a board. The arguments are asset id, expiration time, base IV, all strikes, and all skews.
-- **closeBoard (0x724d7817)** Сlosing the board after the expiration moment.
-- **addStrike (0xe11966ec)** Adding a strike price to a specific board.
-- **removeStrike (0xacab1b2a)** Removing a strike price if it is no longer relevant.
+```initBoard (0xeef6342a)``` Creation of a board. The arguments are asset id, expiration time, base IV, all strikes, and all skews.
+
+```closeBoard (0x724d7817)``` Сlosing the board after the expiration moment.
+
+```addStrike (0xe11966ec)``` Adding a strike price to a specific board.
+
+```removeStrike (0xacab1b2a)``` Removing a strike price if it is no longer relevant.
