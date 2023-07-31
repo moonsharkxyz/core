@@ -433,7 +433,7 @@ builder store_slice(builder b, slice s) asm "STSLICER";
 ;;; If [x] does not belong to the supported range, a range check exception is thrown.
 ;;;
 ;;; Store amounts of TonCoins to the builder as VarUInteger 16
-builder store_grams(builder b, int x) asm "STGRAMS";
+;; builder store_grams(builder b, int x) asm "STGRAMS";
 builder store_coins(builder b, int x) asm "STGRAMS";
 
 ;;; Stores dictionary `D` represented by `cell` [c] or `null` into `builder` [b].

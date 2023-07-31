@@ -55,7 +55,6 @@
         int is_long = in_msg_body~load_uint(1);
         int qty = in_msg_body~load_uint(64);
         int collateral = in_msg_body~load_uint(64);
-        int liq_price = in_msg_body~load_uint(64);
         slice owner_addr = in_msg_body~load_msg_addr();
         int iv = in_msg_body~load_uint(64);
 
@@ -74,13 +73,12 @@
             .store_uint(is_long, 1)
             .store_uint(qty, 64)
             .store_uint(collateral, 64)
-            .store_uint(liq_price, 64)
             .store_slice(owner_addr)
             .store_uint(iv, 64)
             .store_uint(skew, 64)
             .store_uint(is_live, 1)
             .end_cell()
-        ).end_cell(), 64);
+        ).end_cell(), 128);
         return ();
     }
     if (op == "open_pos"c){                
@@ -95,7 +93,7 @@
     }
 }
 
-cell get_info() method_id {
+(int, int, int, int) get_info() method_id {
     (cell contracts, slice main_address, slice board_address, int is_live, int strike, int skew, int exp_price) = load_data();
-    return begin_cell().store_uint(is_live, 1).store_uint(skew, 64).store_uint(exp_price, 64).end_cell();
+    return (is_live, strike, skew, exp_price);
 }

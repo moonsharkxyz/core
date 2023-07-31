@@ -4,11 +4,11 @@
 (cell, slice, slice, int, int) load_data() inline {
   var ds = get_data().begin_parse();
   return
-    (ds~load_ref(), ;; contracts
-     ds~load_msg_addr(), ;; main_addr
-     ds~load_msg_addr(), ;; owner_addr
-     ds~load_uint(64), ;; index
-     ds~load_uint(64) ;; usdt balance
+    (ds~load_ref(),
+     ds~load_msg_addr(),
+     ds~load_msg_addr(),
+     ds~load_uint(64),
+     ds~load_coins()
     );
 }
 
@@ -28,15 +28,15 @@
     }
     int op = in_msg_body~load_uint(32);
     if (op == "add_balance"c) {
-      balance += in_msg_body~load_uint(64);
-      set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_slice(owner_addr).store_uint(index, 64).store_uint(balance, 64).end_cell());
+      balance = balance + in_msg_body~load_uint(64);
+      set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_slice(owner_addr).store_uint(index, 64).store_coins(balance).end_cell());
       return ();
     }
     if (op != "open_pos"c) {
       return ();
     }
 
-    int needed = in_msg_body~load_uint(64);
+    int needed = in_msg_body~load_coins();
     if (balance < needed) {
       throw(909);
     }
@@ -72,7 +72,6 @@
             .store_uint(is_long, 1)
             .store_uint(qty, 64)
             .store_uint(collateral, 64)
-            .store_uint(liq_price, 64)
             .end_cell()
         ).end_cell(), 1);
 
@@ -81,7 +80,7 @@
         begin_cell()
         .store_uint(0x18, 6)
         .store_slice(calc_addr(state_init))
-        .store_grams(0)
+        .store_coins(0)
         .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
         .store_ref(state_init)
         .store_ref(
@@ -98,15 +97,15 @@
         ).end_cell(), 64);
     
     index = index + 1;
-    set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_slice(owner_addr).store_uint(index, 64).store_uint(balance, 64).end_cell());
+    set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_slice(owner_addr).store_uint(index, 64).store_coins(balance).end_cell());
 }
 
 cell get_info() method_id {
   (cell contracts, slice main_addr, slice owner_addr, int index, int balance) = load_data();
-  return begin_cell().store_uint(index, 64).store_uint(balance, 64).end_cell();
+  return begin_cell().store_uint(index, 64).store_coins(balance).end_cell();
 }
 
-slice get_position_address_by_index(int index) method_id {
+slice get_position_address(int index) method_id {
     (cell contracts, slice main_addr, slice owner_addr, int index, int balance) = load_data();
     return calc_addr(calc_position_init(contracts, main_addr, my_address(), owner_addr, index));
 }

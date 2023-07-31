@@ -59,8 +59,8 @@
             throw(779);
         }
         int price = in_msg_body~load_uint(64);
-
-        while (payload.slice_refs_empty?() != -1) {
+        int flag = 0;
+        while (flag == 0) {
             int exp_time = payload~load_uint(64);
             int strike = payload~load_uint(64);
 
@@ -68,7 +68,8 @@
             int is_long = payload~load_uint(1);
             int qty = payload~load_uint(64);
             int collateral = payload~load_uint(64);
-            int liq_price = payload~load_uint(64);
+            if ((collateral * 500000 > price * qty) & (collateral * 100000 < price * qty)) {
+            int liq_price = (price * qty - collateral * 100000) / qty;
 
             slice owner_addr = payload~load_msg_addr();
             
@@ -77,28 +78,32 @@
 
             cell state_init = calc_user_init(contracts_cell, my_address(), owner_addr);
             send_raw_message(begin_cell()
-            .store_uint(0x18, 6)
-            .store_slice(calc_addr(state_init))
-            .store_grams(50000000)
-            .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
-            .store_ref(state_init)
-            .store_ref(begin_cell()
-                .store_uint("open_pos"c, 32)
-                .store_uint(get_proxy_utility(price, strike, is_call, is_long, exp_time, iv, skew), 64)
-                .store_uint(asset, 3)
-                .store_uint(exp_time, 64)
-                .store_uint(strike, 64)
-                .store_uint(is_call, 1)
-                .store_uint(is_long, 1)
-                .store_uint(qty, 64)
-                .store_uint(collateral, 64)
-                .store_uint(liq_price, 64)
-                .store_slice(owner_addr)
-                .store_uint(iv, 64)
-                .store_uint(skew, 64)
-            .end_cell()).end_cell(), 0);
-
-            payload = payload~load_ref().begin_parse();
+                .store_uint(0x18, 6)
+                .store_slice(calc_addr(state_init))
+                .store_coins(75000000)
+                .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
+                .store_ref(state_init)
+                .store_ref(begin_cell()
+                    .store_uint("open_pos"c, 32)
+                    .store_coins(get_proxy_utility(price, strike, is_call, is_long, exp_time, iv, skew))
+                    .store_uint(asset, 3)
+                    .store_uint(exp_time, 64)
+                    .store_uint(strike, 64)
+                    .store_uint(is_call, 1)
+                    .store_uint(is_long, 1)
+                    .store_uint(qty, 64)
+                    .store_uint(collateral, 64)
+                    .store_uint(liq_price, 64)
+                    .store_slice(owner_addr)
+                    .store_uint(iv, 64)
+                    .store_uint(skew, 64)
+                .end_cell()).end_cell(), 0);
+            }
+            if (payload.slice_refs_empty?()) {
+                flag = 1;
+            } else {
+                payload = payload~load_ref().begin_parse();
+            }
         }
         req_dic~udict_delete?(3, asset);
         store_data(contracts_cell,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
@@ -115,12 +120,12 @@
                 begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time)))
-                .store_coins(50000000)
+                .store_coins(0)
                 .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_uint(op, 32)
                 .store_uint(strike, 64)
                 .store_uint(skew, 64)
-                .end_cell(), 0);
+                .end_cell(), 64);
             return ();
         }
         if (op == "remove_strike"c) {
@@ -131,7 +136,7 @@
                 begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time)))
-                .store_coins(35000000)
+                .store_coins(0)
                 .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_uint(op, 32)
                 .store_uint(strike, 64)
@@ -149,7 +154,7 @@
             send_raw_message(begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(board_addr)
-                .store_grams(0)
+                .store_coins(0)
                 .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
                 .store_ref(state_init)
                 .store_ref(begin_cell()
@@ -162,14 +167,13 @@
             int asset = in_msg_body~load_uint(3);
             int exp_time = in_msg_body~load_uint(64);
             slice board_addr = calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time));
-            boards_cell = begin_cell().store_slice(board_addr).store_ref(boards_cell).end_cell();
-            slice boards = boards_cell.begin_parse();
             cell new_boards = begin_cell().end_cell();
+            slice boards = boards_cell.begin_parse();
             while (boards.slice_refs_empty?() != -1) {
                 ifnot (boards.slice_data_empty?()) {
                     slice b_addr = boards~load_msg_addr();
                     ifnot (equal_slices(board_addr,b_addr)) {
-                        new_boards = begin_cell().store_slice(board_addr).store_ref(new_boards).end_cell();
+                        new_boards = begin_cell().store_slice(b_addr).store_ref(new_boards).end_cell();
                     }
                 }
                 boards = boards~load_ref().begin_parse();
@@ -178,7 +182,7 @@
                 begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(board_addr)
-                .store_coins(35000000)
+                .store_coins(0)
                 .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_uint("close"c, 32)
                 .end_cell(), 64);
@@ -195,24 +199,11 @@
         ifnot (equal_slices(sender_addr, jaddr)) {
             return ();
         }
+        int query_id = in_msg_body~load_uint(64); 
         int amount = in_msg_body~load_coins(); 
         slice from_address = in_msg_body~load_msg_addr();
-        
-        cell state_init = calc_user_init(contracts_cell, my_address(), from_address);
-        send_raw_message(begin_cell()
-            .store_uint(0x18, 6)
-            .store_slice(calc_addr(state_init))
-            .store_grams(0)
-            .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
-            .store_ref(state_init)
-            .store_ref(begin_cell()
-                .store_uint("add_balance"c, 32)
-                .store_uint(amount, 64)
-            .end_cell()).end_cell(), 64);
-        return ();
-    }
-    if (op == "open_pos"c) {
 
+        
         int asset = in_msg_body~load_uint(3);
         int exp_time = in_msg_body~load_uint(64);
         int strike = in_msg_body~load_uint(64);
@@ -221,9 +212,13 @@
         int is_long = in_msg_body~load_uint(1);
         int qty = in_msg_body~load_uint(64);
         int collateral = in_msg_body~load_uint(64);
-        int liq_price = in_msg_body~load_uint(64);
 
         
+
+
+
+
+
         slice contracts = contracts_cell.begin_parse();
         cell user_contract = contracts~load_ref();
         cell position_contract = contracts~load_ref();
@@ -231,33 +226,52 @@
         cell strike_contract = contracts~load_ref();
         slice boards = boards_cell.begin_parse();
 
-        slice board_addr = calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time));
+        cell board_init = calc_board_init(contracts_cell, my_address(), asset, exp_time);
+        send_raw_message(
+            begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(calc_addr(board_init))
+            .store_coins(50000000)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_uint("open_pos"c, 32)
+            .store_ref(begin_cell()
+            .store_uint(asset, 3)
+            .store_uint(exp_time, 64)
+            .store_uint(strike, 64)
+            .store_uint(is_call, 1)
+            .store_uint(is_long, 1)
+            .store_uint(qty, 64)
+            .store_uint(collateral, 64)
+            .store_slice(sender_addr)
+            .end_cell()).end_cell(), 0);
 
-        while (boards.slice_refs_empty?() != -1) {
-            slice a = boards~load_msg_addr();
-            if (equal_slices(a, board_addr)) {
-                send_raw_message(
-                begin_cell()
-                .store_uint(0x18, 6)
-                .store_slice(board_addr)
-                .store_coins(100000000)
-                .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-                .store_uint(op, 32)
-                .store_ref(begin_cell()
-                .store_uint(asset, 3)
-                .store_uint(exp_time, 64)
-                .store_uint(strike, 64)
-                .store_uint(is_call, 1)
-                .store_uint(is_long, 1)
-                .store_uint(qty, 64)
-                .store_uint(collateral, 64)
-                .store_uint(liq_price, 64)
-                .store_slice(sender_addr)
-                .end_cell()).end_cell(), 0);
-                return ();
-            }
-            boards = boards~load_ref().begin_parse();
-        }
+        send_raw_message(begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(calc_addr(board_init))
+            .store_coins(0)
+            .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
+            .store_ref(board_init)
+            .store_ref(begin_cell()
+                .store_uint("add_balance"c, 32)
+                .store_uint(amount, 64)
+            .end_cell()).end_cell(), 64);
+
+
+
+
+
+
+        cell user_init = calc_user_init(contracts_cell, my_address(), from_address);
+        send_raw_message(begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(calc_addr(user_init))
+            .store_coins(0)
+            .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
+            .store_ref(user_init)
+            .store_ref(begin_cell()
+                .store_uint("add_balance"c, 32)
+                .store_uint(amount, 64)
+            .end_cell()).end_cell(), 64);
         return ();
     }
     if (op == "get_price"c) {
@@ -271,7 +285,6 @@
         int is_long = in_msg_body~load_uint(1);
         int qty = in_msg_body~load_uint(64);
         int collateral = in_msg_body~load_uint(64);
-        int liq_price = in_msg_body~load_uint(64);
 
         slice owner_addr = in_msg_body~load_msg_addr();
         
@@ -302,7 +315,6 @@
             .store_uint(is_long, 1)
             .store_uint(qty, 64)
             .store_uint(collateral, 64)
-            .store_uint(liq_price, 64)
             .store_slice(owner_addr)
             .store_uint(iv, 64)
             .store_uint(skew, 64)
@@ -324,7 +336,6 @@
             .store_uint(is_long, 1)
             .store_uint(qty, 64)
             .store_uint(collateral, 64)
-            .store_uint(liq_price, 64)
             .store_slice(owner_addr)
             .store_uint(iv, 64)
             .store_uint(skew, 64)
@@ -337,13 +348,13 @@
 }
 
 
-slice get_user_addr(slice user_w_addr) method_id {
+slice get_user_address(slice user_wallet) method_id {
     slice ds = get_data().begin_parse();
     cell contracts_cell = ds~load_ref();
-    return calc_addr(calc_user_init(contracts_cell, my_address(), user_w_addr));
+    return (calc_addr(calc_user_init(contracts_cell, my_address(), user_wallet)));
 }
 
-cell get_boards() method_id {
+cell get_live_boards() method_id {
     (_, _, _, _, _, _, _, _, cell boards_cell) = load_data();
     return boards_cell;
 }

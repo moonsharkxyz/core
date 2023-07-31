@@ -71,7 +71,7 @@ cell calc_board_init(cell contracts_cell, slice main_addr, int asset, int exp_ti
         .store_uint(asset, 3)
         .store_uint(exp_time, 64)
         .store_uint(0, 64)
-        .store_dict(new_dict())
+        .store_ref(begin_cell().end_cell())
         .end_cell());
 }
 cell calc_strike_init(cell contracts_cell, slice main_address, slice board_address, int strike) inline {
@@ -86,6 +86,7 @@ cell calc_strike_init(cell contracts_cell, slice main_address, slice board_addre
         .store_slice(board_address)
         .store_uint(0, 1)
         .store_uint(strike, 64)
+        .store_uint(0, 64)
         .store_uint(0, 64)
         .store_uint(0, 64)
         .end_cell());

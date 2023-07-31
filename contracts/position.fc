@@ -53,6 +53,8 @@
         int liq_price = in_msg_body~load_uint(64);
 
         store_data(contracts, main_address, user_address, owner_address, index, is_closed, asset, exp_time, strike, is_call, is_long, qty, collateral, liq_price);
+
+        send_raw_message(begin_cell().store_uint(0x10, 6).store_slice(main_address).store_coins(0).store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1).end_cell(), 128);
     }
     if (equal_slices(sender_address, owner_address)){
         int op = in_msg_body~load_uint(32);

@@ -2,7 +2,7 @@
 #include "imports/utils.fc";
 
 (cell, slice, int, int, int, int, cell) load_data() inline {
-  var ds = get_data().begin_parse();
+  slice ds = get_data().begin_parse();
   return
     (ds~load_ref(),
      ds~load_msg_addr(),
@@ -10,7 +10,7 @@
      ds~load_uint(3),
      ds~load_uint(64),
      ds~load_uint(64),
-     ds~load_dict());
+     ds~load_ref());
 }
 
 () recv_internal(int balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -23,30 +23,35 @@
         return();
     }
     slice sender_address = cs~load_msg_addr();
-    (cell contracts, slice main_addr, int is_live, int asset, int exp_time, int iv, cell strikes_dic) = load_data();
+    (cell contracts, slice main_addr, int is_live, int asset, int exp_time, int iv, cell strikes) = load_data();
 
     if(equal_slices(sender_address, main_addr)){
         int op = in_msg_body~load_uint(32);
         if (op == "init"c) {
             iv = in_msg_body~load_uint(64);
-            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(1, 1).store_uint(asset, 64).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell());
+            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(1, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_ref(strikes).end_cell());
             return ();
         }
         if (op == "close"c) {
             if (is_live != 0) {
-                set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(0, 1).store_uint(asset, 64).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell());
+                set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(0, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_ref(strikes).end_cell());
             }
             return ();
         }
         if (op == "add_strike"c) {
             int strike = in_msg_body~load_uint(64);
-            strikes_dic~udict_set(64, strike, ""s);
-            int skew = in_msg_body~load_uint(64);
+
+
             cell state_init = calc_strike_init(contracts, main_addr, my_address(), strike);
+            slice strike_addr = calc_addr(state_init);
+            strikes = begin_cell().store_slice(strike_addr).store_ref(strikes).end_cell();
+
+            int skew = in_msg_body~load_uint(64);
+            
             send_raw_message(begin_cell()
             .store_uint(0x18, 6)
-            .store_slice(calc_addr(state_init))
-            .store_grams(0)
+            .store_slice(strike_addr)
+            .store_coins(0)
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
             .store_ref(begin_cell()
@@ -54,25 +59,36 @@
                 .store_uint(1, 1)
                 .store_uint(skew, 64)
             .end_cell()).end_cell(), 64);
-            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 64).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell());
+            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_ref(strikes).end_cell());
             return ();
         }
         if (op == "remove_strike"c) {
             int strike = in_msg_body~load_uint(64);
-            (cell strikes_dic, _) = strikes_dic.udict_delete?(64,strike);
-            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 64).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell());
+            slice strike_addr = calc_addr(calc_strike_init(contracts, main_addr, my_address(), strike));
+            cell new_strikes = begin_cell().end_cell();
+            slice strikes_s = strikes.begin_parse();
+            while (strikes_s.slice_refs_empty?() != -1) {
+                ifnot (strikes_s.slice_data_empty?()) {
+                    slice s_addr = strikes_s~load_msg_addr();
+                    ifnot (equal_slices(strike_addr,s_addr)) {
+                        new_strikes = begin_cell().store_slice(s_addr).store_ref(new_strikes).end_cell();
+                    }
+                }
+                strikes_s = strikes_s~load_ref().begin_parse();
+            }
+            set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_ref(new_strikes).end_cell());
             send_raw_message(
                 begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(calc_addr(calc_strike_init(contracts, main_addr, my_address(), strike)))
-                .store_coins(35000000)
+                .store_coins(0)
                 .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_ref(
                     begin_cell()
                     .store_uint("init"c, 32)
                     .store_uint(0, 1)
                     .end_cell()
-                ).end_cell(), 0);
+                ).end_cell(), 64);
 
             return ();
         }
@@ -89,7 +105,6 @@
             int is_long = in_msg_body~load_uint(1);
             int qty = in_msg_body~load_uint(64);
             int collateral = in_msg_body~load_uint(64);
-            int liq_price = in_msg_body~load_uint(64);
 
             slice owner_addr = in_msg_body~load_msg_addr();
            
@@ -97,7 +112,7 @@
             send_raw_message(begin_cell()
                 .store_uint(0x18, 6)
                 .store_slice(calc_addr(state_init))
-                .store_grams(0)
+                .store_coins(0)
                 .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
                 .store_ref(state_init)
                 .store_ref(begin_cell()
@@ -109,16 +124,13 @@
                         .store_uint(is_long, 1)
                         .store_uint(qty, 64)
                         .store_uint(collateral, 64)
-                        .store_uint(liq_price, 64)
                         .store_slice(owner_addr)
                         .store_uint(iv, 64)
-                .end_cell()).end_cell(), 64);
+                .end_cell()).end_cell(), 128);
             return ();
         }
     }
-    if (in_msg_body.slice_bits() < 640) {
-        return ();
-    }
+
     slice owner_addr = in_msg_body~load_msg_addr();
     if(equal_slices(sender_address, calc_addr(calc_user_init(contracts, main_addr, owner_addr)))){
     
@@ -127,13 +139,12 @@
         int is_long = in_msg_body~load_uint(64);
         int qty = in_msg_body~load_uint(64);
         int collateral = in_msg_body~load_uint(64);
-        int liq_price = in_msg_body~load_uint(64);
 
         cell state_init = calc_strike_init(contracts, main_addr, my_address(), strike);
         send_raw_message(begin_cell()
             .store_uint(0x18, 6)
             .store_slice(calc_addr(state_init))
-            .store_grams(0)
+            .store_coins(0)
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
             .store_ref(begin_cell()
@@ -142,20 +153,20 @@
                 .store_uint(is_long, 1)
                 .store_uint(qty, 64)
                 .store_uint(collateral, 64)
-                .store_uint(liq_price, 64)
-            .end_cell()).end_cell(), 64);
-        set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 64).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell());
+            .end_cell()).end_cell(), 128);
+        set_data(begin_cell().store_ref(contracts).store_slice(main_addr).store_uint(is_live, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_ref(strikes).end_cell());
     }
 }
 
 
-cell get_info() method_id {
-  (_, _, int is_live, int asset, int exp_time, int iv, cell strikes_dic) = load_data();
-  return begin_cell().store_uint(is_live, 1).store_uint(asset, 3).store_uint(exp_time, 64).store_uint(iv, 64).store_dict(strikes_dic).end_cell();
+(int, int, int, int, cell) get_info() method_id {
+    (cell contracts, slice main_addr, int is_live, int asset, int exp_time, int iv, cell strikes) = load_data();
+    return (is_live, asset, exp_time, iv, strikes);
 }
 
 slice get_strike_address(int strike) method_id {
-    (cell contracts, slice main_addr, _, _, _, _, _) = load_data();
-
-    return calc_addr(calc_strike_init(contracts, main_addr, my_address(), strike));
+    slice ds = get_data().begin_parse();
+    cell contracts = ds~load_ref();
+    slice main_addr = ds~load_msg_addr();
+    return (calc_addr(calc_strike_init(contracts, main_addr, my_address(), strike)));
 }
