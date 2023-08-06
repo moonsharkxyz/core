@@ -25,7 +25,6 @@ cell calc_user_init(cell contracts_cell, slice main_addr, slice owner_addr) inli
         .store_slice(main_addr)
         .store_slice(owner_addr)
         .store_uint(0, 64)
-        .store_uint(0, 64)
         .end_cell());
 }
 cell calc_position_init(cell contracts_cell, slice main_address, slice user_address, slice owner_address, int item_index) {
@@ -43,17 +42,14 @@ cell calc_position_init(cell contracts_cell, slice main_address, slice user_addr
         .store_uint(item_index, 64)
         .store_uint(0, 1)
         .store_ref(begin_cell()
-          .store_uint(0, 32)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
-          .store_uint(0, 64)
+          .store_uint(0, 3)
           .store_uint(0, 64)
           .store_uint(0, 64)
           .store_uint(0, 1)
+          .store_uint(0, 1)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
+          .store_uint(0, 64)
           .end_cell()
         ).end_cell());
 }

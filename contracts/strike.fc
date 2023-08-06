@@ -1,99 +1,107 @@
 #include "imports/stdlib.fc";
-(cell, slice, slice, int, int, int, int) load_data() inline {
-    slice ds = get_data().begin_parse();
-    cell contracts = ds~load_ref();
-    slice main_address = ds~load_msg_addr();
-    slice board_address = ds~load_msg_addr();
-    int is_live = ds~load_uint(1);
-    int strike = ds~load_uint(64);
-    int skew = ds~load_uint(64);
-    int exp_price = ds~load_uint(64);
-    return (contracts, main_address, board_address, is_live, strike, skew, exp_price);
+#include "imports/utils.fc";
+(cell, slice, slice, int, int, int, int, int) load_data() inline {
+	slice ds = get_data().begin_parse();
+	cell contracts = ds~load_ref();
+	slice main_addr = ds~load_msg_addr();
+	slice board_addr = ds~load_msg_addr();
+	int is_live = ds~load_uint(1);
+	int strike = ds~load_uint(64);
+	int skew = ds~load_uint(64);
+	int ss = ds~load_uint(64);
+	int exp_price = ds~load_uint(64);
+	return (contracts, main_addr, board_addr, is_live, strike, skew, ss, exp_price);
 }
 
-() store_data(cell contracts, slice main_address, slice board_address, int is_live, int strike, int skew, int exp_price) impure {
-    set_data(
-        begin_cell()
-            .store_ref(contracts)
-            .store_slice(main_address)
-            .store_slice(board_address)
-            .store_uint(is_live, 1)
-            .store_uint(strike, 64)
-            .store_uint(skew, 64)
-            .store_uint(exp_price, 64)
-            .end_cell()
-    );
+() store_data(cell contracts, slice main_addr, slice board_addr, int is_live, int strike, int skew, int ss, int exp_price) impure {
+	set_data(
+		begin_cell()
+			.store_ref(contracts)
+			.store_slice(main_addr)
+			.store_slice(board_addr)
+			.store_uint(is_live, 1)
+			.store_uint(strike, 64)
+			.store_uint(skew, 64)
+			.store_uint(ss, 64)
+			.store_uint(exp_price, 64)
+			.end_cell()
+	);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
-    slice cs = in_msg_full.begin_parse();
-    int flags = cs~load_uint(4);
-    if (flags & 1) {
-        return ();
-    }
-    (cell contracts, slice main_address, slice board_address, int is_live, int strike, int skew, int exp_price) = load_data();
+	slice cs = in_msg_full.begin_parse();
+	int flags = cs~load_uint(4);
+	if (flags & 1) {
+		return ();
+	}
+	int op = in_msg_body~load_uint(32);
+	(cell contracts, slice main_addr, slice board_addr, int is_live, int strike, int skew, int ss, int exp_price) = load_data();
+	if (op == "init"c) {
+		slice sender_addr = cs~load_msg_addr();
+		ifnot (equal_slices(sender_addr, board_addr)){
+			return ();
+		}
+		
+		is_live = in_msg_body~load_uint(1);
+		if (is_live) {
+			skew = in_msg_body~load_uint(64);
+			skew = skew * 1000000000000000;
+			ss = in_msg_body~load_uint(64);
+		}
+		store_data(contracts, main_addr, board_addr, is_live, strike, skew, ss, exp_price);
+		slice aaddr = in_msg_body~load_msg_addr();
+		send_raw_message(
+			begin_cell()
+			.store_uint(0x18, 6)
+			.store_slice(aaddr)
+			.store_coins(0)
+			.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+			.end_cell(), 64);
+		return ();
+	}
+	if (op == "get_iv_skew"c){
+		slice sender_addr = cs~load_msg_addr();
+		ifnot (equal_slices(sender_addr, main_addr)){
+			return ();
+		}
+		send_raw_message(begin_cell()
+			.store_uint(0x10, 6)
+			.store_slice(board_addr)
+			.store_coins(0)
+			.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1) 
+			.store_uint(1, 1)
+			.store_ref(
+			begin_cell()
+				.store_uint("get_iv_skew"c, 32)
+				.store_uint(strike, 64)
+				.store_uint(is_live, 1)
+				.store_slice(in_msg_body)
+				.store_uint(skew, 64)
+				.end_cell()
+		).end_cell(), 64);
+		return ();
+	}
+	if (op == "open_pos"c){                
+		int is_call = in_msg_body~load_uint(1);
+		int is_long = in_msg_body~load_uint(1);
+		int qty = in_msg_body~load_uint(64);
 
-    slice sender_address = cs~load_msg_addr();
-    ifnot (equal_slices(sender_address, board_address)){
-        return ();
-    }
-    int op = in_msg_body~load_uint(32);
-    if (op == "init"c) {
-        is_live = in_msg_body~load_uint(1);
-        if (is_live) {
-            skew = in_msg_body~load_uint(64);
-        }
-        store_data(contracts, main_address, board_address, is_live, strike, skew, exp_price);
-        return ();
-    }
-
-    if (op == "return_data"c){
-        int asset = in_msg_body~load_uint(3);
-        int exp_time = in_msg_body~load_uint(64);
-        int strike = in_msg_body~load_uint(64);
-        int is_call = in_msg_body~load_uint(1);
-        int is_long = in_msg_body~load_uint(1);
-        int qty = in_msg_body~load_uint(64);
-        int collateral = in_msg_body~load_uint(64);
-        slice owner_addr = in_msg_body~load_msg_addr();
-        int iv = in_msg_body~load_uint(64);
-
-        send_raw_message(begin_cell()
-        .store_uint(0x10, 6)
-        .store_slice(main_address)
-        .store_coins(0)
-        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-        .store_uint("get_price"c, 32)
-        .store_ref(
-            begin_cell()
-            .store_uint(asset, 3)
-            .store_uint(exp_time, 64)
-            .store_uint(strike, 64)
-            .store_uint(is_call, 1)
-            .store_uint(is_long, 1)
-            .store_uint(qty, 64)
-            .store_uint(collateral, 64)
-            .store_slice(owner_addr)
-            .store_uint(iv, 64)
-            .store_uint(skew, 64)
-            .store_uint(is_live, 1)
-            .end_cell()
-        ).end_cell(), 128);
-        return ();
-    }
-    if (op == "open_pos"c){                
-        int is_call = in_msg_body~load_uint(1);
-        int is_long = in_msg_body~load_uint(1);
-        slice qty = in_msg_body~load_msg_addr();
-        int collateral = in_msg_body~load_uint(64);
-        int liq_price = in_msg_body~load_uint(64);
-
-        store_data(contracts, main_address, board_address, is_live, strike, skew, exp_price);
-        return ();
-    }
+		send_raw_message(begin_cell()
+			.store_uint(0x10, 6)
+			.store_slice(main_addr)
+			.store_coins(0)
+			.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+			.end_cell(), 64);
+		int x = qty * 100000000000000 / ss;
+		ifnot (is_long){
+			x = 0 - x;
+		}
+		store_data(contracts, main_addr, board_addr, is_live, strike, skew + x, ss, exp_price); 
+		return ();
+	}
 }
 
 (int, int, int, int) get_info() method_id {
-    (cell contracts, slice main_address, slice board_address, int is_live, int strike, int skew, int exp_price) = load_data();
-    return (is_live, strike, skew, exp_price);
+	(cell contracts, slice main_addr, slice board_addr, int is_live, int strike, int skew, int ss, int exp_price) = load_data();
+	return (is_live, strike, skew, exp_price);
 }

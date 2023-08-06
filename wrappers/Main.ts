@@ -27,9 +27,6 @@ export function mainConfigToCell(config: MainConfig): Cell {
         .storeRef(beginCell().endCell())
         .endCell();
 }
-function delay(ms: number) {
-    return new Promise( resolve => setTimeout(resolve, ms) );
-}
 export class Main implements Contract {
     constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) { }
     static createFromAddress(address: Address) {
@@ -47,23 +44,6 @@ export class Main implements Contract {
             body: beginCell().endCell(),
         });
     }
-    async sendAddPosition(provider: ContractProvider, via: Sender) {
-        await provider.internal(via, {
-            value: toNano('0.1'),
-            sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: beginCell()
-                .storeUint(crc32("open_pos"), 32)
-                .storeUint(2, 3)
-                .storeUint(1694163600, 64)
-                .storeUint(170000000, 64)
-                .storeUint(0, 1)
-                .storeUint(0, 1)
-                .storeUint(1, 64)
-                .storeUint(2, 64)
-                .storeUint(0, 64)
-                .endCell(),
-        });
-    }
     async sendAddStrike(provider: ContractProvider, via: Sender) {
         await provider.internal(via, {
             value: toNano('0.05'),
@@ -74,6 +54,7 @@ export class Main implements Contract {
                 .storeUint(1694163600, 64)
                 .storeUint(170000000, 64)
                 .storeUint(1100, 64)
+                .storeUint(450, 64) //means 1.00
                 .endCell(),
         });
     }
@@ -118,19 +99,8 @@ export class Main implements Contract {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
                 .storeUint(crc32("set_jaddr"), 32)
-                .storeAddress(Address.parse(""))
+                .storeAddress(Address.parse("EQDCq-3TFjXd5VXSqkR5ontyq_uNxgSXlg6U29liaCR0Usqe"))
                 .endCell(),
         });
-    }
-    async getUserAddr(provider: ContractProvider, opts: {
-        addr: Address
-    }): Promise<Address> {
-        const result = await provider.get('get_user_addr', [
-            {
-                type: 'slice',
-                cell: beginCell().storeAddress(opts.addr).endCell()
-            } as TupleItemSlice
-        ]);
-        return result.stack.readAddress();
     }
 }
