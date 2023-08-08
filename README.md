@@ -10,7 +10,7 @@ Moonshark runs on the proof-of-stake Ton blockchain and consists of several smar
 
 ![image](https://773214883-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2Fm9jjkplmuJ7nbMBMRsnc%2Fuploads%2Fw81wzKneLKN5GDhC47hC%2FFlowchart%20(3).jpg?alt=media&token=9555938a-4009-4834-9d21-7048efd6858a)
 
-The Ton blockchain actively uses sharding technology. Sharding is based on a simple idea: “if something gets too big, you can split it into smaller segments.” Smart contracts development in Moonshark also uses sharding for user.fc, position.fc, board.fc, and strike.fc contracts.
+The Ton blockchain actively uses sharding technology. Sharding is based on a simple idea: "If something gets too big, you can split it into smaller segments." Smart contracts development in Moonshark also uses sharding for User.fc, Position.fc, Board.fc, and Strike.fc contracts.
 
 ## Contracts
 
@@ -24,11 +24,11 @@ Main.fc is the primary contract in our system and it is used to trade options an
 ```get_user_address(slice user_wallet)```
 
 ### Board
-Board.fc is responsible for representing the active board. The board is one expiration for one asset. Creation and updating occurs by admin. The board creates a strike.fc contracts.
+Board.fc is responsible for representing the active board. The board is one expiration for one asset. Creation and updating occurs by admin. The board creates a Strike.fc contracts.
 
 **Get methods:** 
 
-```get info()```
+```get_info()```
 
 ```get_strike_address (int strike)```
 
@@ -37,14 +37,14 @@ Each Strike.fc contract is responsible for a specific strike on a specific board
 
 **Get methods:** 
 
-```get info()```
+```get_info()```
 
 ### User
 The User.fc contract is used as a proxy for storing information about a particular user. Contract is used to fetch all user's positions.
 
 **Get methods:** 
 
-```get info()```
+```get_info()```
 
 ```get_position_address (int index)```
 
@@ -54,7 +54,7 @@ Position.fc is a contract for storing data and implementing logic for interactin
 
 **Get methods:** 
 
-```get info()``` 
+```get_info()``` 
 
 ## Oracle
 
@@ -67,7 +67,7 @@ Let's analyze the user groups that interact with the protocol.
 ### Traders
 Traders can buy/sell options. Traders have access to the following functions:
 
-```openPosition (0x124ccada)``` Allows to open a position on the Main contract. The arguments are asset id, strike, expiration, number of options, option type and collateral when opening a short position.
+```openPosition (send token with notification, 0x7362d09c)``` Opening the position goes through a stablecoin contract with an embedded payload to interact with the Main.fc contract. This implementation is made to allow opening a position with only one transaction. The forward amount must be at least 0.3 TON. Learn more about sending tokens with notification [here](https://docs.ton.org/develop/dapps/asset-processing/jettons#how-to-send-jetton-transfers-with-comments-and-notifications). 
 
 ```closePosition (0x49cf872f)``` Allows to close a position in the position contract. If at the time of expiration the position turned out to be profitable, the trader is paid the profit.
 
