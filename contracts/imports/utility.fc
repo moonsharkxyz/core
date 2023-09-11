@@ -1,0 +1,245 @@
+#include "/math.fc";
+const int max_int = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
+(int, int) f_m(int x1, int x2, int y1, int y2) inline {
+    var (f1, f2) = fraction(x1, y2);
+    var (f3, f4) = fraction(y1, x2);
+    int sign = 1;
+    if ((f1 < 0) & (f3 < 0)) {
+        f1 = abs(f1);
+        f3 = abs(f3);
+    } elseif ((f1 < 0) | (f3 < 0)) {
+        sign = -1;
+    }
+    if (((f1 < 0) & (f3 > 0)) | ((f3 < 0) & (f1 > 0))) {
+        sign = -1;
+    }
+    f1 = abs(f1);
+    f3 = abs(f3);
+    while ((lb(f1) + lb(f3) > 253) | (lb(f2) + lb(f4) > 253)) {
+        if (f1 > f3) {
+            if (f1 > 1) {
+                f1 ~>>= 1;
+            }
+        } else {
+            if (f3 > 1) {
+                f3 ~>>= 1;
+            }
+        }
+        if (f2 > f4) {
+            if (f2 > 1) {
+                f2 ~>>= 1;
+            }
+        } else {
+            if (f4 > 1) {
+                f4 ~>>= 1;
+            }
+        }
+        int g = gcd(f1, f2);
+        if (g > 1) {
+            f1 /= g;
+            f2 /= g;
+        }
+        g = gcd(f3, f4);
+        if (g > 1) {
+            f3 /= g;
+            f4 /= g;
+        }
+        g = gcd(f1, f4);
+        if (g > 1) {
+            f1 /= g;
+            f4 /= g;
+        }
+        g = gcd(f3, f2);
+        if (g > 1) {
+            f3 /= g;
+            f2 /= g;
+        }
+    }
+    return fraction(sign * f1 * f3, f2 * f4);
+}
+(int, int) f_s(int x1, int x2, int y1, int y2) inline {
+    int g = gcd(x2, y2);
+    y2 /= g;
+    x2 /= g;
+    int sign1 = 1;
+    int sign2 = 1;
+    if (x1 < 0) {
+        sign1 = -1;
+    }
+    if (y1 < 0) {
+        sign2 = -1;
+    }
+    x1 = abs(x1);
+    y1 = abs(y1);
+    while((((lb(x2) + lb(y2 * g) > 254) | (lb(x1) + lb(y2) > 254)) | (lb(y1) + lb(x2) > 254))) {
+        if (x2 > y2) {
+            if (x2 > 1) {
+                x2 ~>>= 1;
+            }
+            if (x1 > 1) {
+                x1 ~>>= 1;
+            }
+            int gq = gcd(x1, x2);
+            if (g > 1) {
+                x1 /= gq;
+                x2 /= gq;
+            }
+        } else {
+            if (y2 > 1) {
+                y2 ~>>= 1;
+            }
+            if (y1 > 1) {
+                y1 ~>>= 1;
+            }
+            int gq = gcd(y1, y2);
+            if (g > 1) {
+                y1 /= gq;
+                y2 /= gq;
+            }
+        }
+    }
+    while (max_int - y1 * x2 < x1 * y2) {
+        if (x2 > y2) {
+            if (x2 > 1) {
+                x2 ~>>= 1;
+            }
+            if (x1 > 1) {
+                x1 ~>>= 1;
+            }
+            int gq = gcd(x1, x2);
+            if (g > 1) {
+                x1 /= gq;
+                x2 /= gq;
+            }
+        } else {
+            if (y2 > 1) {
+                y2 ~>>= 1;
+            }
+            if (y1 > 1) {
+                y1 ~>>= 1;
+            }
+            int gq = gcd(y1, y2);
+            if (g > 1) {
+                y1 /= gq;
+                y2 /= gq;
+            }
+        }
+    }
+    return fraction(sign1 * x1 * y2 + sign2 * y1 * x2, x2 * y2 * g);
+}
+
+(int, int) ncdf(int x1, int x2) inline {
+    var (t1, t2) = f_m(115771, 500000, x1, x2);
+    (t1, t2) = f_s(t1, t2, 1, 1);
+    var (tmp1, tmp2) = f_m(x1, x2, x1, x2);
+    (tmp1, tmp2) = f_m(tmp1, tmp2, -1, 2);
+    var (e1, e2) = f_exp(tmp1, tmp2);
+    var (prob1, prob2) = f_m(665137, 500000, t1, t2);
+    (prob1, prob2) = f_s(prob1, prob2, -910628, 500000);
+    (prob1, prob2) = f_m(prob1, prob2, t1, t2);
+    (prob1, prob2) = f_s(prob1, prob2, 890739, 500000);
+    (prob1, prob2) = f_m(prob1, prob2, t1, t2);
+    (prob1, prob2) = f_s(prob1, prob2, -178282, 500000);
+    (prob1, prob2) = f_m(prob1, prob2, t1, t2);
+    (prob1, prob2) = f_s(prob1, prob2, 159691, 500000);
+    (prob1, prob2) = f_m(prob1, prob2, t1, t2);
+    (prob1, prob2) = f_m(prob1, prob2, 199471, 500000);
+    (prob1, prob2) = f_m(prob1, prob2, e1, e2);
+    if (x1 > 0){
+        prob1 = prob2 - prob1;
+    }
+    return (prob1, prob2);
+}
+
+(int, int) f_exp(int x1, int x2) inline {
+    int sum1 = 1;
+    int sum2 = 1;
+    int fctr = 1;
+    int mult = 1;
+    int sign = 1;
+    if (x1 < 0) {
+        sign = -1;
+        x1 = abs(x1);
+    }
+    while ((x1 > 92489556975) | (x2 > 27363651527)) {
+        if (x1 > 1) {
+            x1 ~>>= 1;
+        }
+        if (x2 > 1) {
+            x2 ~>>= 1;
+        }
+    }
+    int end = 255 / (lb(max(x1, x2 * 5040)));
+    int i = 1;
+    while(i <= end){
+        mult *= x1 * sign;
+        sum1 = sum1 * x2 * i + mult;
+        sum2 = sum2 * x2 * i;
+        i += 1;
+    }
+    return fraction(sum1, sum2);
+}
+
+int gcd(int u, int v) inline {
+    while (v > 0) {
+        int r = u % v;
+        u = v;
+        v = r;
+    }
+    return u;
+}
+
+(int, int) fraction(int x1, int x2) inline {
+    if (x2 < 0) {
+        if (x1 < 0) {
+            x1 = abs(x1);
+            x2 = abs(x2);
+        } else {
+            x1 *= -1;
+            x2 *= -1;
+        }
+    }
+    int ax1 = abs(x1);
+    int ax2 = abs(x2);
+    int g = gcd(ax1, ax2);
+    if ((g < ax1) & (g < ax2)) {
+        return (x1 / g, x2 / g);
+    }
+    return (x1, x2);
+}
+
+(int, int) get_price(int a_price, int strike, int is_call, int exp_time, int iv) inline {
+
+    var (s1, s2) = fraction(a_price, 100000);
+    var (k1, k2) = fraction(strike, 100000);
+    var (r1, r2) = fraction(1, 20);
+    var (t1, t2) = fraction(exp_time - now(), 31536000);
+    var (v1, v2) = fraction(iv, 1000000000000000000);
+
+    var (sk1, k) = fraction(s1 * k2, s2 * k1);
+    int s = sk1 - k;
+    var (2lnsk1, 2lnsk2) = fraction(s * k * k * k * k * k * 60 + s * s * s * k * k * k * 20 + s * s * s * s * s * k * 12 - s * s * k * k * k * k * 30 + s * s * s * s * k * k * 15 + s * s * s * s * s * s * 10, k * k * k * k * k * k * 30);
+
+    var (d1t, d1b) = fraction((2lnsk1 * v2 * v2 * t2 * r2 + 2lnsk2 * 2 * r1 * t1 * v2 * v2 + 2lnsk2 * r2 * t1 * v1 * v1) * 10000000000, 2lnsk2 * r2 * 2 * v1 * v2 * math::sqrt(t1 * 10000000000) * math::sqrt(t2 * 10000000000));
+    var (d2t, d2b) = fraction((2lnsk1 * v2 * v2 * t2 * r2 + 2lnsk2 * 2 * r1 * t1 * v2 * v2 - 2lnsk2 * r2 * t1 * v1 * v1) * 10000000000, 2lnsk2 * r2 * 2 * v1 * v2 * math::sqrt(t1 * 10000000000) * math::sqrt(t2 * 10000000000));
+
+    var (e1, e2) = f_exp(-1 * t1 * r1, t2 * r2);
+    if (is_call) {
+        var (d1n1, d1n2) = ncdf(d1t, d1b);
+    var (d2n1, d2n2) = ncdf(d2t, d2b);
+        var (call1, call2) = f_m(d1n1,d1n2,s1,s2);
+        var (tmp1, tmp2) = f_m(d2n1,d2n2,k1,k2);
+        (tmp1, tmp2) = f_m(tmp1,tmp2,e1,e2);
+        (call1, call2) = f_s(call1, call2, - tmp1, tmp2);
+        return (call1, call2);
+    } else {
+        var (d1n1, d1n2) = ncdf( - d1t, d1b);
+    var (d2n1, d2n2) = ncdf( - d2t, d2b);
+        var (put1, put2) = f_m(d1n1,d1n2,s1,s2);
+        var (tmp1, tmp2) = f_m(d2n1,d2n2,k1,k2);
+        (tmp1, tmp2) = f_m(tmp1,tmp2,e1,e2);
+        (put1, put2) = f_s( - put1, put2, tmp1, tmp2);
+        return (put1, put2);
+    }
+}

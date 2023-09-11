@@ -3,56 +3,58 @@
 #include "imports/utils.fc";
 #include "imports/utility.fc";
 
-(cell, slice, slice, int, int, int, int, cell, cell) load_data() inline {
+(cell, slice, slice, slice, int, int, int, int, cell, cell) load_data() inline {
 	slice ds = get_data().begin_parse();
 
 	cell contracts = ds~load_ref();
+	slice oracle = ds~load_msg_addr();
 	slice aaddr = ds~load_msg_addr();
 	slice jaddr = ds~load_msg_addr();
 	
-	int call_long = ds~load_uint(64);
-	int call_short = ds~load_uint(64);
+	int call_long = ds~load_uint(55);
+	int call_short = ds~load_uint(55);
 
-	int put_long = ds~load_uint(64);
-	int put_short = ds~load_uint(64);
+	int put_long = ds~load_uint(55);
+	int put_short = ds~load_uint(55);
 
 	cell req_dic = ds~load_dict();
 
 	cell boards = ds~load_ref();
 
-	return (contracts, aaddr, jaddr, call_long, call_short, put_long, put_short, req_dic, boards);
+	return (contracts, oracle, aaddr, jaddr, call_long, call_short, put_long, put_short, req_dic, boards);
 }
 
-() store_data(cell contracts, slice aaddr, slice jaddr, int call_long, int call_short, int put_long, int put_short, cell req_dic, cell boards) impure {
+() store_data(cell contracts, slice oracle, slice aaddr, slice jaddr, int call_long, int call_short, int put_long, int put_short, cell req_dic, cell boards) impure {
 	set_data(
 		begin_cell()
 			.store_ref(contracts)
+			.store_slice(oracle)
 			.store_slice(aaddr)
 			.store_slice(jaddr)
-			.store_uint(call_long, 64)
-			.store_uint(call_short, 64)
-			.store_uint(put_long, 64)
-			.store_uint(put_short, 64)
+			.store_uint(call_long, 55)
+			.store_uint(call_short, 55)
+			.store_uint(put_long, 55)
+			.store_uint(put_short, 55)
 			.store_dict(req_dic)
 			.store_ref(boards)
 			.end_cell()
 	);
 }
 
-() send_back(slice jaddr, int amount, slice to_address) impure {
+() send_back(slice jaddr, int amount, slice to_addr) impure {
 	send_raw_message(begin_cell()
 		.store_uint(0x10, 6)
 		.store_slice(jaddr)
-		.store_coins(50000000)
+		.store_coins(100000000)
 		.store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
 		.store_ref(begin_cell()
 			.store_uint(0x0f8a7ea5, 32)
 			.store_uint(0, 64)
 			.store_coins(amount)
-			.store_slice(to_address)
+			.store_slice(to_addr)
 			.store_slice(my_address())
 			.store_maybe_ref(null())
-			.store_coins(1)
+			.store_coins(25000000)
 			.store_uint(1, 1)
 			.end_cell())
 		.end_cell(), 0);	
@@ -69,31 +71,68 @@
 	}
 
 	slice sender_addr = cs~load_msg_addr();
-	(cell contracts_cell, slice aaddr, slice jaddr, int call_long, int call_short, int put_long, int put_short, cell req_dic, cell boards_cell) = load_data();
-	if (equal_slices(sender_addr, ORACLE)){
+	(cell contracts_cell, slice oracle, slice aaddr, slice jaddr, int call_long, int call_short, int put_long, int put_short, cell req_dic, cell boards_cell) = load_data();
+
+	if (equal_slices(sender_addr, oracle) & (in_msg_body.slice_bits() == 67)){
 		int asset = in_msg_body~load_uint(3);
 		(slice payload, int exist) = req_dic.udict_get?(3, asset);
 		ifnot (exist) {
 			throw(779);
 		}
 		int price = in_msg_body~load_uint(64);
+		
 		int flag = 0;
 		while (flag == 0) {
 			int exp_time = payload~load_uint(64);
-			int strike = payload~load_uint(64);
+			int for_open_pos = payload~load_uint(1);
+			if (for_open_pos) {
+				int strike = payload~load_uint(64);
+				int is_call = payload~load_uint(1);
+				int is_long = payload~load_uint(1);
+				int qty = payload~load_uint(64);
+				int collateral = payload~load_uint(64);
+				slice owner_addr = payload~load_msg_addr();
+				int amount = payload~load_coins();
+				int skew = payload~load_uint(64);
+				int iv = payload~load_uint(64);
+				int ss = payload~load_uint(64);
+			
+				int x = qty * 10000000000000000 / ss;
+				if (is_long) {
+					iv = iv + x;
+					skew = skew + x;
+				} else {
+					iv = iv - x;
+					skew = skew - x;
+				}
+				int opt_price = get_proxy_utility(price, strike, is_call, is_long, exp_time, iv, skew);
+				if (is_long) {
+					if (amount * 100 >= opt_price * qty){
+						cell state_init = calc_user_init(contracts_cell, my_address(), owner_addr);
+						send_raw_message(begin_cell()
+						.store_uint(0x18, 6)
+						.store_slice(calc_addr(state_init))
+						.store_coins(200000000)
+						.store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
+						.store_ref(state_init)
+						.store_ref(begin_cell()
+							.store_uint(asset, 3)
+							.store_uint(exp_time, 64)
+							.store_uint(strike, 64)
+							.store_uint(is_call, 1)
+							.store_uint(is_long, 1)
+							.store_uint(qty, 64)
+							.store_uint(amount, 64)
+							.store_uint(0, 64)
+							.store_uint(opt_price, 64)
+						.end_cell()).end_cell(), 0);
 
-			int is_call = payload~load_uint(1);
-			int is_long = payload~load_uint(1);
-			int qty = payload~load_uint(64);
-			int collateral = payload~load_uint(64);
-			slice owner_addr = payload~load_msg_addr();
-			int amount = payload~load_coins(); ;; 9
-			int skew = payload~load_uint(64); ;;18
-			int iv = payload~load_uint(64); ;;3
-			if (is_long) {
-				int n = get_proxy_utility(price, strike, is_call, is_long, exp_time, iv, skew);
-				if (amount * 100 >= n * qty){
-					
+						send_back(jaddr, (amount * 100 - opt_price * qty) / 100, owner_addr);
+					} else {
+						send_back(jaddr, amount, owner_addr);
+					}
+				} elseif ((amount > price * qty * 20) & (amount < price * qty * 100)) {
+					int liq_price = (price * qty * 100 - amount) / qty;
 					cell state_init = calc_user_init(contracts_cell, my_address(), owner_addr);
 					send_raw_message(begin_cell()
 						.store_uint(0x18, 6)
@@ -109,35 +148,36 @@
 							.store_uint(is_long, 1)
 							.store_uint(qty, 64)
 							.store_uint(amount, 64)
-							.store_uint(0, 64)
+							.store_uint(liq_price, 64)
+							.store_uint(opt_price, 64)
 						.end_cell()).end_cell(), 0);
-					if (amount * 100 >= n * qty) {
-						send_back(jaddr, (amount * 100 - n * qty) / 100, owner_addr);
-					}
 				} else {
 					send_back(jaddr, amount, owner_addr);
 				}
-			} elseif ((amount > price * qty * 20) & (amount < price * qty * 100)) {
-				int liq_price = (price * qty * 100 - amount) / qty;
-				cell state_init = calc_user_init(contracts_cell, my_address(), owner_addr);
-					send_raw_message(begin_cell()
-						.store_uint(0x18, 6)
-						.store_slice(calc_addr(state_init))
-						.store_coins(200000000)
-						.store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
-						.store_ref(state_init)
-						.store_ref(begin_cell()
-							.store_uint(asset, 3)
-							.store_uint(exp_time, 64)
-							.store_uint(strike, 64)
-							.store_uint(is_call, 1)
-							.store_uint(is_long, 1)
-							.store_uint(qty, 64)
-							.store_uint(amount, 64)
-							.store_uint(liq_price, 64)
-						.end_cell()).end_cell(), 0);
 			} else {
-				send_back(jaddr, amount, owner_addr);
+				slice board_addr = calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time));
+				cell new_boards = begin_cell().end_cell();
+				slice boards = boards_cell.begin_parse();
+				while (boards.slice_refs_empty?() != -1) {
+					ifnot (boards.slice_data_empty?()) {
+						slice b_addr = boards~load_msg_addr();
+						ifnot (equal_slices(board_addr,b_addr)) {
+							new_boards = begin_cell().store_slice(b_addr).store_ref(new_boards).end_cell();
+						}
+					}
+					boards = boards~load_ref().begin_parse();
+				}
+				boards_cell = new_boards;
+				send_raw_message(
+					begin_cell()
+					.store_uint(0x18, 6)
+					.store_slice(board_addr)
+					.store_coins(50000000)
+					.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+					.store_uint("close"c, 32)
+					.store_uint(price, 64)
+					.store_slice(aaddr)
+					.end_cell(), 64);
 			}
 			if (payload.slice_refs_empty?()) {
 				flag = 1;
@@ -146,7 +186,7 @@
 			}
 		}
 		req_dic~udict_delete?(3, asset);
-		store_data(contracts_cell,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+		store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
 		return ();
 	}
 	int op = in_msg_body~load_uint(32);
@@ -184,10 +224,11 @@
 			int asset = in_msg_body~load_uint(3);
 			int exp_time = in_msg_body~load_uint(64);
 			int iv = in_msg_body~load_uint(64);
+			int ss = in_msg_body~load_uint(64);
 			cell state_init = calc_board_init(contracts_cell, my_address(), asset, exp_time);
 			slice board_addr = calc_addr(state_init);
 			boards_cell = begin_cell().store_slice(board_addr).store_ref(boards_cell).end_cell();
-			store_data(contracts_cell,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+			store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
 			send_raw_message(begin_cell()
 				.store_uint(0x18, 6)
 				.store_slice(board_addr)
@@ -197,6 +238,7 @@
 				.store_ref(begin_cell()
 					.store_uint("init"c, 32)
 					.store_uint(iv, 64)
+					.store_uint(ss, 64)
 					.store_slice(aaddr)
 				.end_cell()).end_cell(), 64);
 			return ();
@@ -204,32 +246,47 @@
 		if (op == "close_board"c) {
 			int asset = in_msg_body~load_uint(3);
 			int exp_time = in_msg_body~load_uint(64);
-			slice board_addr = calc_addr(calc_board_init(contracts_cell, my_address(), asset, exp_time));
-			cell new_boards = begin_cell().end_cell();
-			slice boards = boards_cell.begin_parse();
-			while (boards.slice_refs_empty?() != -1) {
-				ifnot (boards.slice_data_empty?()) {
-					slice b_addr = boards~load_msg_addr();
-					ifnot (equal_slices(board_addr,b_addr)) {
-						new_boards = begin_cell().store_slice(b_addr).store_ref(new_boards).end_cell();
-					}
-				}
-				boards = boards~load_ref().begin_parse();
-			}
-			send_raw_message(
-				begin_cell()
+			
+			(slice payload, int exist) = req_dic.udict_get?(3, asset);
+			if (exist) {
+				req_dic~udict_set(3, asset, begin_cell()
+					.store_uint(exp_time, 64)
+					.store_uint(0, 1)
+					.store_ref(begin_cell().store_slice(payload).end_cell()).end_cell().begin_parse());
+			} else {
+				send_raw_message(begin_cell()
 				.store_uint(0x18, 6)
-				.store_slice(board_addr)
-				.store_coins(0)
+				.store_slice(oracle)
+				.store_coins(100000000)
 				.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-				.store_uint("close"c, 32)
-				.store_slice(aaddr)
-				.end_cell(), 64);
+				.store_uint("req_price"c, 32)
+				.store_uint(asset, 3)
+				.end_cell(), 1);
+			
+				req_dic~udict_set(3, asset, begin_cell()
+				.store_uint(exp_time, 64)
+				.store_uint(0, 1)
+				.end_cell().begin_parse());
+			}
+			store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+
 			return ();
 		}
 		if (op == "set_jaddr"c) {
 			jaddr = in_msg_body~load_msg_addr();
-			store_data(contracts_cell,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+			store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+			send_raw_message(
+				begin_cell()
+				.store_uint(0x18, 6)
+				.store_slice(aaddr)
+				.store_coins(0)
+				.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+				.end_cell(), 64);
+			return ();
+		}
+		if (op == "set_oracle"c) {
+			oracle = in_msg_body~load_msg_addr();
+			store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
 			send_raw_message(
 				begin_cell()
 				.store_uint(0x18, 6)
@@ -268,7 +325,7 @@
 			.end_cell(), 64);
 		return ();
 	}
-	if (op == "return_amount"c) {
+	if (op == "withdraw"c) {
 		int asset = in_msg_body~load_uint(3);
 		int exp_time = in_msg_body~load_uint(64);
 
@@ -278,8 +335,8 @@
 			return ();
 		}
 		int amount = in_msg_body~load_coins(); 
-		slice from_addr = in_msg_body~load_msg_addr();
-		send_back(jaddr, amount, from_addr);
+		slice to_addr = in_msg_body~load_msg_addr();
+		send_back(jaddr, amount, to_addr);
 		return ();
 	}
 	if (op == "return_iv_skew"c) {
@@ -296,13 +353,14 @@
 		if (exist) {
 			req_dic~udict_set(3, asset, begin_cell()
 			.store_uint(exp_time, 64)
+			.store_uint(1, 1)
 			.store_slice(in_msg_body)
 			.store_ref(begin_cell().store_slice(payload).end_cell()).end_cell().begin_parse());
 		} else {
 			send_raw_message(
 				begin_cell()
 				.store_uint(0x18, 6)
-				.store_slice(ORACLE)
+				.store_slice(oracle)
 				.store_coins(100000000)
 				.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
 				.store_uint("req_price"c, 32)
@@ -311,10 +369,11 @@
 			
 			req_dic~udict_set(3, asset, begin_cell()
 			.store_uint(exp_time, 64)
+			.store_uint(1, 1)
 			.store_slice(in_msg_body)
 			.end_cell().begin_parse());
 		}
-		store_data(contracts_cell,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
+		store_data(contracts_cell,oracle,aaddr,jaddr,call_long,call_short,put_long,put_short,req_dic,boards_cell);
 		return ();
 	}
 }
@@ -326,6 +385,10 @@ slice get_user_address(slice user_wallet) method_id {
 }
 
 cell get_live_boards() method_id {
-	(_, _, _, _, _, _, _, _, cell boards_cell) = load_data();
+	(_, _, _, _, _, _, _, _, _, cell boards_cell) = load_data();
 	return boards_cell;
+}
+
+(int, int) calc_opt_price(int a_price, int strike, int is_call, int exp_time, int iv) method_id {
+	return (get_price(a_price, strike, is_call, exp_time, iv));
 }

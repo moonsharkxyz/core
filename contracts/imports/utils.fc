@@ -50,6 +50,7 @@ cell calc_position_init(cell contracts_cell, slice main_address, slice user_addr
           .store_uint(0, 64)
           .store_uint(0, 64)
           .store_uint(0, 64)
+          .store_uint(0, 64)
           .end_cell()
         ).end_cell());
 }
@@ -66,6 +67,8 @@ cell calc_board_init(cell contracts_cell, slice main_addr, int asset, int exp_ti
         .store_uint(0, 1)
         .store_uint(asset, 3)
         .store_uint(exp_time, 64)
+        .store_uint(0, 64)
+        .store_uint(0, 64)
         .store_uint(0, 64)
         .store_ref(begin_cell().end_cell())
         .end_cell());

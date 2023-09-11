@@ -17,13 +17,5 @@ export async function run(provider: NetworkProvider) {
         aaddr: provider.sender().address!,
         jaddr: provider.sender().address!,
     }, await compile('Main')));
-
-    let params = {
-        asset_id: 2,
-        exp_time: 1693732600,
-        iv: 550,
-        ss: 450
-    }
-
-    await main.sendInitBoard(provider.sender(), params);
+    await main.sendSetOracle(provider.sender());
 }

@@ -13,6 +13,7 @@ export async function run(provider: NetworkProvider) {
         position_contract,
         board_contract,
         strike_contract,
+        oracle: provider.sender().address!,
         aaddr: provider.sender().address!,
         jaddr: provider.sender().address!,
     }, await compile('Main')));

@@ -20,10 +20,17 @@ export async function run(provider: NetworkProvider) {
 
     let params = {
         asset_id: 2,
-        exp_time: 1693732600,
+        exp_time: 1692954000,
+        strike: 170000000,
         iv: 550,
-        ss: 450
+        skew: 1100,
+        ss: 450,
+        is_call: true,
+        is_long: true,
+        q: 1,
+        collateral: 100,
+        marketPrice: 175000000
     }
 
-    await main.sendInitBoard(provider.sender(), params);
+    await main.sendOpenPos(provider.sender(), params);
 }

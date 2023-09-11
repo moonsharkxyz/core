@@ -13,8 +13,15 @@ export async function run(provider: NetworkProvider) {
         position_contract,
         board_contract,
         strike_contract,
+        oracle: provider.sender().address!,
         aaddr: provider.sender().address!,
         jaddr: provider.sender().address!,
     }, await compile('Main')));
-    await main.sendRemoveStrike(provider.sender());
+    let params = {
+        asset_id: 2,
+        exp_time: 1693732600,
+        strike: 170000000,
+        skew: 1100
+    }
+    await main.sendRemoveStrike(provider.sender(), params);
 }
